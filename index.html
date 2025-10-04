@@ -19,7 +19,7 @@
             --warning-color: #f39c12;
             --border-color: #bdc3c7;
         }
-         
+        
         * {
             box-sizing: border-box;
             margin: 0;
@@ -213,6 +213,15 @@
             background-color: #e67e22;
         }
         
+        .btn-danger {
+            background-color: var(--accent-color);
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background-color: #c0392b;
+        }
+        
         footer {
             margin-top: 20px;
             text-align: center;
@@ -296,6 +305,38 @@
         .notification.info {
             background-color: var(--secondary-color);
         }
+        
+        .firebase-status {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: bold;
+            z-index: 1000;
+        }
+        
+        .firebase-status.connected {
+            background-color: var(--success-color);
+            color: white;
+        }
+        
+        .firebase-status.disconnected {
+            background-color: var(--accent-color);
+            color: white;
+        }
+        
+        .row-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        
+        .row-actions button {
+            font-size: 8px;
+            padding: 4px 6px;
+        }
     </style>
 </head>
 <body>
@@ -304,6 +345,7 @@
         
         <header>
             <h1>Tableau de Gestion des Délais des Marchés Publics</h1>
+           
         </header>
         
         <div class="table-container">
@@ -347,8 +389,9 @@
         
         <div class="actions">
             <button class="btn-secondary" id="add-row">Ajouter une ligne</button>
+            <button class="btn-success" id="load-data">Charger depuis Firebase</button>
             <button class="btn-primary" id="save-all">Sauvegarder tout</button>
-            <button class="btn-success" id="load-data">Charger les données</button>
+            <button class="btn-danger" id="delete-all">Tout supprimer</button>
         </div>
         
         <footer>
@@ -358,6 +401,9 @@
 
     <!-- Notification -->
     <div id="notification" class="notification"></div>
+    
+    <!-- Statut Firebase -->
+    <div id="firebase-status" class="firebase-status">Connexion...</div>
 
     <script>
         // Configuration Firebase
@@ -371,12 +417,26 @@
         };
 
         // Initialiser Firebase
-        const app = firebase.initializeApp(firebaseConfig);
-        const db = firebase.firestore();
+        let app;
+        let db;
+        let firebaseInitialized = false;
+
+        try {
+            app = firebase.initializeApp(firebaseConfig);
+            db = firebase.firestore();
+            firebaseInitialized = true;
+            updateFirebaseStatus(true);
+            console.log("Firebase initialisé avec succès");
+        } catch (error) {
+            console.error("Erreur d'initialisation Firebase:", error);
+            updateFirebaseStatus(false);
+            showNotification("Erreur de connexion à Firebase", "error");
+        }
 
         // Variables globales
         let currentRowId = 1;
         let isInitialized = false;
+        let autoSaveEnabled = true;
 
         document.addEventListener('DOMContentLoaded', function() {
             // Mettre à jour la date actuelle
@@ -394,6 +454,13 @@
             addNewRow();
             isInitialized = true;
             
+            // Charger les données au démarrage si Firebase est initialisé
+            if (firebaseInitialized) {
+                setTimeout(() => {
+                    loadDataFromFirebase();
+                }, 1000);
+            }
+            
             // Ajouter une nouvelle ligne
             document.getElementById('add-row').addEventListener('click', function() {
                 addNewRow();
@@ -409,15 +476,38 @@
             document.getElementById('load-data').addEventListener('click', function() {
                 loadDataFromFirebase();
             });
+            
+            // Supprimer toutes les données
+            document.getElementById('delete-all').addEventListener('click', function() {
+                if (confirm('Êtes-vous sûr de vouloir supprimer TOUTES les données ? Cette action est irréversible.')) {
+                    deleteAllData();
+                }
+            });
         });
+
+        // Fonction pour mettre à jour le statut Firebase
+        function updateFirebaseStatus(connected) {
+            const statusElement = document.getElementById('firebase-status');
+            if (connected) {
+                statusElement.textContent = 'Firebase: Connecté';
+                statusElement.className = 'firebase-status connected';
+            } else {
+                statusElement.textContent = 'Firebase: Déconnecté';
+                statusElement.className = 'firebase-status disconnected';
+            }
+        }
 
         // Fonction pour ajouter une nouvelle ligne
         function addNewRow(rowData = null) {
             const tbody = document.getElementById('table-body');
-            const rowId = currentRowId++;
+            const rowId = rowData?.id || `row-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
             
             const newRow = document.createElement('tr');
             newRow.setAttribute('data-row-id', rowId);
+            
+            // Déterminer la valeur sélectionnée pour le maintien
+            let maintienSelected = rowData?.maintienOffres?.type || '';
+            let maintienCustomValue = rowData?.maintienOffres?.customValue || '';
             
             newRow.innerHTML = `
                 <td><input type="text" class="exercice" placeholder="Ex: 2023" value="${rowData?.exercice || ''}"></td>
@@ -456,16 +546,16 @@
                 <td>
                     <div class="maintien-container">
                         <div class="maintien-option">
-                            <input type="radio" name="maintien-${rowId}" value="1" class="maintien-radio" ${rowData?.maintienOffres?.type === '1' ? 'checked' : ''}> Un mois
+                            <input type="radio" name="maintien-${rowId}" value="1" class="maintien-radio" ${maintienSelected === '1' ? 'checked' : ''}> Un mois (30 jours)
                         </div>
                         <div class="maintien-option">
-                            <input type="radio" name="maintien-${rowId}" value="12" class="maintien-radio" ${rowData?.maintienOffres?.type === '12' ? 'checked' : ''}> Une année
+                            <input type="radio" name="maintien-${rowId}" value="12" class="maintien-radio" ${maintienSelected === '12' ? 'checked' : ''}> Une année (365 jours)
                         </div>
                         <div class="maintien-option">
-                            <input type="radio" name="maintien-${rowId}" value="custom" class="maintien-radio" ${rowData?.maintienOffres?.type === 'custom' ? 'checked' : ''}> Autre: 
+                            <input type="radio" name="maintien-${rowId}" value="custom" class="maintien-radio" ${maintienSelected === 'custom' ? 'checked' : ''}> Autre: 
                             <input type="number" class="maintien-custom" placeholder="Mois" min="1" style="width: 50px;" 
-                                value="${rowData?.maintienOffres?.customValue || ''}" 
-                                ${rowData?.maintienOffres?.type === 'custom' ? '' : 'disabled'}>
+                                value="${maintienCustomValue}" 
+                                ${maintienSelected === 'custom' ? '' : 'disabled'}>
                         </div>
                     </div>
                 </td>
@@ -474,8 +564,10 @@
                 <td><input type="date" class="date-limite-caution-definitive" readonly value="${rowData?.dateLimiteCautionDefinitive || ''}"></td>
                 <td class="alertes">${rowData?.alertes ? rowData.alertes.map(alerte => `<div class="alert-message">${alerte}</div>`).join('') : ''}</td>
                 <td>
-                    <button class="btn-warning save-row" data-row-id="${rowId}">Sauvegarder</button>
-                    <button class="btn-secondary delete-row" data-row-id="${rowId}">Supprimer</button>
+                    <div class="row-actions">
+                        <button class="btn-warning save-row" data-row-id="${rowId}">Sauvegarder</button>
+                        <button class="btn-danger delete-row" data-row-id="${rowId}">Supprimer</button>
+                    </div>
                 </td>
             `;
             
@@ -500,19 +592,37 @@
             // Écouteurs pour les champs de date qui déclenchent les calculs
             const dateFields = row.querySelectorAll('input[type="date"]:not([readonly])');
             dateFields.forEach(field => {
-                field.addEventListener('change', calculateDelays);
+                field.addEventListener('change', function() {
+                    calculateDelays({target: row});
+                    if (autoSaveEnabled) {
+                        const rowId = row.getAttribute('data-row-id');
+                        setTimeout(() => saveRowData(rowId), 500);
+                    }
+                });
             });
             
             // Écouteur pour le champ de type de marché
             const typeMarche = row.querySelector('.type-marche');
             if (typeMarche) {
-                typeMarche.addEventListener('change', calculateDelays);
+                typeMarche.addEventListener('change', function() {
+                    calculateDelays({target: row});
+                    if (autoSaveEnabled) {
+                        const rowId = row.getAttribute('data-row-id');
+                        setTimeout(() => saveRowData(rowId), 500);
+                    }
+                });
             }
             
             // Écouteur pour la visite des lieux
             const visiteLieux = row.querySelector('.visite-lieux-exigee');
             if (visiteLieux) {
-                visiteLieux.addEventListener('change', calculateDelays);
+                visiteLieux.addEventListener('change', function() {
+                    calculateDelays({target: row});
+                    if (autoSaveEnabled) {
+                        const rowId = row.getAttribute('data-row-id');
+                        setTimeout(() => saveRowData(rowId), 500);
+                    }
+                });
             }
             
             // Écouteurs pour les options de maintien
@@ -526,6 +636,10 @@
                         customInput.disabled = true;
                     }
                     calculateDelays({target: row});
+                    if (autoSaveEnabled) {
+                        const rowId = row.getAttribute('data-row-id');
+                        setTimeout(() => saveRowData(rowId), 500);
+                    }
                 });
             });
             
@@ -533,25 +647,47 @@
             if (maintienCustom) {
                 maintienCustom.addEventListener('input', function() {
                     calculateDelays({target: row});
+                    if (autoSaveEnabled) {
+                        const rowId = row.getAttribute('data-row-id');
+                        setTimeout(() => saveRowData(rowId), 500);
+                    }
                 });
             }
             
             // Écouteurs pour les champs de texte obligatoires
             const requiredFields = row.querySelectorAll('.exercice, .dao, .objet, .titulaire-marche');
             requiredFields.forEach(field => {
-                field.addEventListener('input', checkAlerts);
+                field.addEventListener('input', function() {
+                    checkAlerts({target: row});
+                    if (autoSaveEnabled) {
+                        const rowId = row.getAttribute('data-row-id');
+                        setTimeout(() => saveRowData(rowId), 500);
+                    }
+                });
             });
             
             // Écouteur pour le champ d'approbation
             const dateApprobation = row.querySelector('.date-approbation');
             if (dateApprobation) {
-                dateApprobation.addEventListener('change', checkAlerts);
+                dateApprobation.addEventListener('change', function() {
+                    checkAlerts({target: row});
+                    if (autoSaveEnabled) {
+                        const rowId = row.getAttribute('data-row-id');
+                        setTimeout(() => saveRowData(rowId), 500);
+                    }
+                });
             }
             
             // Écouteur pour le champ de notification d'approbation
             const dateNotificationApprobation = row.querySelector('.date-notification-approbation');
             if (dateNotificationApprobation) {
-                dateNotificationApprobation.addEventListener('change', checkAlerts);
+                dateNotificationApprobation.addEventListener('change', function() {
+                    checkAlerts({target: row});
+                    if (autoSaveEnabled) {
+                        const rowId = row.getAttribute('data-row-id');
+                        setTimeout(() => saveRowData(rowId), 500);
+                    }
+                });
             }
             
             // Écouteur pour le bouton de sauvegarde de ligne
@@ -942,7 +1078,7 @@
             const alertes = Array.from(alertesElements).map(el => el.textContent);
             
             return {
-                rowId,
+                id: rowId,
                 exercice,
                 dao,
                 objet,
@@ -975,6 +1111,11 @@
 
         // Fonction pour sauvegarder une ligne individuelle
         function saveRowData(rowId) {
+            if (!firebaseInitialized) {
+                showNotification('Erreur: Firebase non initialisé', 'error');
+                return;
+            }
+            
             const rowData = getRowData(rowId);
             if (!rowData) {
                 showNotification('Erreur: Ligne non trouvée', 'error');
@@ -988,62 +1129,80 @@
             }
             
             // Sauvegarder dans Firebase
-            db.collection('marches').doc(rowId.toString()).set(rowData)
+            db.collection('marches').doc(rowId).set(rowData)
                 .then(() => {
                     showNotification('Ligne sauvegardée avec succès', 'success');
+                    console.log('Données sauvegardées:', rowData);
                 })
                 .catch((error) => {
                     console.error('Erreur lors de la sauvegarde:', error);
-                    showNotification('Erreur lors de la sauvegarde', 'error');
+                    showNotification('Erreur lors de la sauvegarde: ' + error.message, 'error');
                 });
         }
 
         // Fonction pour sauvegarder toutes les données
         function saveAllData() {
+            if (!firebaseInitialized) {
+                showNotification('Erreur: Firebase non initialisé', 'error');
+                return;
+            }
+            
             const rows = document.querySelectorAll('#table-body tr');
             let hasErrors = false;
             let savedCount = 0;
+            let totalRows = 0;
             
             rows.forEach(row => {
                 const rowId = row.getAttribute('data-row-id');
                 const rowData = getRowData(rowId);
                 
-                // Vérifier les champs obligatoires
-                if (!rowData.exercice || !rowData.dao || !rowData.objet || !rowData.typeMarche || !rowData.titulaireMarche) {
-                    hasErrors = true;
-                    return;
-                }
-                
-                // Sauvegarder dans Firebase
-                db.collection('marches').doc(rowId.toString()).set(rowData)
-                    .then(() => {
-                        savedCount++;
-                        if (savedCount === rows.length && !hasErrors) {
-                            showNotification('Toutes les données ont été sauvegardées avec succès', 'success');
-                        }
-                    })
-                    .catch((error) => {
-                        console.error('Erreur lors de la sauvegarde:', error);
+                // Compter seulement les lignes avec des données
+                if (rowData.exercice || rowData.dao || rowData.objet) {
+                    totalRows++;
+                    
+                    // Vérifier les champs obligatoires
+                    if (!rowData.exercice || !rowData.dao || !rowData.objet || !rowData.typeMarche || !rowData.titulaireMarche) {
                         hasErrors = true;
-                        showNotification('Erreur lors de la sauvegarde de certaines lignes', 'error');
-                    });
+                        return;
+                    }
+                    
+                    // Sauvegarder dans Firebase
+                    db.collection('marches').doc(rowId).set(rowData)
+                        .then(() => {
+                            savedCount++;
+                            if (savedCount === totalRows && !hasErrors) {
+                                showNotification('Toutes les données ont été sauvegardées avec succès', 'success');
+                            }
+                        })
+                        .catch((error) => {
+                            console.error('Erreur lors de la sauvegarde:', error);
+                            hasErrors = true;
+                            showNotification('Erreur lors de la sauvegarde de certaines lignes', 'error');
+                        });
+                }
             });
             
             if (hasErrors) {
                 showNotification('Certains champs obligatoires sont manquants', 'error');
+            } else if (totalRows === 0) {
+                showNotification('Aucune donnée à sauvegarder', 'info');
             }
         }
 
         // Fonction pour charger les données depuis Firebase
         function loadDataFromFirebase() {
+            if (!firebaseInitialized) {
+                showNotification('Erreur: Firebase non initialisé', 'error');
+                return;
+            }
+            
             db.collection('marches').get()
                 .then((querySnapshot) => {
                     // Vider le tableau
                     document.getElementById('table-body').innerHTML = '';
-                    currentRowId = 1;
                     
                     if (querySnapshot.empty) {
-                        showNotification('Aucune donnée trouvée', 'info');
+                        showNotification('Aucune donnée trouvée dans Firebase', 'info');
                         addNewRow();
                         return;
                     }
@@ -1055,19 +1214,24 @@
                         loadedCount++;
                     });
                     
-                    showNotification(`${loadedCount} ligne(s) chargée(s) avec succès`, 'success');
+                    showNotification(`${loadedCount} ligne(s) chargée(s) depuis Firebase`, 'success');
                 })
                 .catch((error) => {
                     console.error('Erreur lors du chargement:', error);
-                    showNotification('Erreur lors du chargement des données', 'error');
+                    showNotification('Erreur lors du chargement des données: ' + error.message, 'error');
                 });
         }
 
         // Fonction pour supprimer une ligne
         function deleteRow(rowId) {
+            if (!firebaseInitialized) {
+                showNotification('Erreur: Firebase non initialisé', 'error');
+                return;
+            }
+            
             if (confirm('Êtes-vous sûr de vouloir supprimer cette ligne ?')) {
                 // Supprimer de Firebase
-                db.collection('marches').doc(rowId.toString()).delete()
+                db.collection('marches').doc(rowId).delete()
                     .then(() => {
                         // Supprimer du DOM
                         const row = document.querySelector(`tr[data-row-id="${rowId}"]`);
@@ -1078,9 +1242,38 @@
                     })
                     .catch((error) => {
                         console.error('Erreur lors de la suppression:', error);
-                        showNotification('Erreur lors de la suppression', 'error');
+                        showNotification('Erreur lors de la suppression: ' + error.message, 'error');
                     });
             }
+        }
+
+        // Fonction pour supprimer toutes les données
+        function deleteAllData() {
+            if (!firebaseInitialized) {
+                showNotification('Erreur: Firebase non initialisé', 'error');
+                return;
+            }
+            
+            db.collection('marches').get()
+                .then((querySnapshot) => {
+                    const batch = db.batch();
+                    
+                    querySnapshot.forEach((doc) => {
+                        batch.delete(doc.ref);
+                    });
+                    
+                    return batch.commit();
+                })
+                .then(() => {
+                    // Vider le tableau
+                    document.getElementById('table-body').innerHTML = '';
+                    addNewRow();
+                    showNotification('Toutes les données ont été supprimées', 'success');
+                })
+                .catch((error) => {
+                    console.error('Erreur lors de la suppression:', error);
+                    showNotification('Erreur lors de la suppression: ' + error.message, 'error');
+                });
         }
     </script>
 </body>
