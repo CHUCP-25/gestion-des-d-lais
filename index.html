@@ -9,6 +9,10 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
     
+    <!-- Bibliothèque pour générer des PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    
     <style>
         :root {
             --primary-color: #2c3e50;
@@ -18,6 +22,8 @@
             --success-color: #2ecc71;
             --warning-color: #f39c12;
             --border-color: #bdc3c7;
+            --morocco-red: #C1272D;
+            --morocco-green: #006233;
         }
         
         * {
@@ -35,12 +41,12 @@
         }
         
         .container {
-            max-width: 1400px;
+            max-width: 1800px;
             margin: 0 auto;
         }
         
         .current-date {
-            background-color: var(--secondary-color);
+            background: linear-gradient(135deg, var(--morocco-red) 0%, var(--morocco-green) 100%);
             color: white;
             padding: 10px 15px;
             border-radius: 6px;
@@ -51,7 +57,7 @@
         }
         
         header {
-            background-color: var(--primary-color);
+            background: linear-gradient(135deg, var(--morocco-red) 0%, var(--morocco-green) 100%);
             color: white;
             padding: 15px;
             border-radius: 8px 8px 0 0;
@@ -59,15 +65,36 @@
         }
         
         h1 {
-            font-size: 20px;
+            font-size: 24px;
             margin-bottom: 8px;
             text-align: center;
+            font-family: 'Times New Roman', Times, serif;
+            font-weight: bold;
         }
         
         .description {
             font-size: 12px;
             opacity: 0.9;
             text-align: center;
+        }
+        
+        .table-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding: 0 10px;
+        }
+        
+        .rows-per-page {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .rows-per-page select {
+            width: auto;
+            padding: 5px;
         }
         
         .table-container {
@@ -81,15 +108,16 @@
         table {
             width: 100%;
             border-collapse: collapse;
-            min-width: 1600px;
-            font-size: 8pt;
+            min-width: 1800px;
+            font-size: 9pt;
         }
         
         th, td {
-            padding: 6px 8px;
+            padding: 8px 10px;
             text-align: left;
             border-bottom: 1px solid var(--border-color);
-            font-size: 8pt;
+            font-size: 9pt;
+            font-family: 'Times New Roman', Times, serif;
         }
         
         th {
@@ -98,7 +126,7 @@
             font-weight: 600;
             position: sticky;
             top: 0;
-            font-size: 10pt;
+            font-size: 9pt;
             z-index: 10;
             text-align: center;
             font-family: 'Times New Roman', Times, serif;
@@ -110,11 +138,12 @@
         
         input, select {
             width: 100%;
-            padding: 4px 6px;
+            padding: 6px 8px;
             border: 1px solid var(--border-color);
             border-radius: 4px;
-            font-size: 8pt;
+            font-size: 9pt;
             background-color: white;
+            font-family: 'Times New Roman', Times, serif;
         }
         
         input:focus, select:focus {
@@ -134,7 +163,7 @@
             top: 50%;
             transform: translateY(-50%);
             pointer-events: none;
-            font-size: 8pt;
+            font-size: 9pt;
         }
         
         .alert-cell {
@@ -145,7 +174,7 @@
         
         .alert-message {
             color: var(--accent-color);
-            font-size: 7pt;
+            font-size: 8pt;
             font-weight: 600;
         }
         
@@ -165,16 +194,18 @@
             justify-content: flex-end;
             gap: 10px;
             margin-top: 15px;
+            flex-wrap: wrap;
         }
         
         button {
-            padding: 6px 12px;
+            padding: 8px 15px;
             border: none;
             border-radius: 4px;
             cursor: pointer;
             font-weight: 600;
             transition: all 0.3s ease;
-            font-size: 9pt;
+            font-size: 10pt;
+            font-family: 'Times New Roman', Times, serif;
         }
         
         .btn-primary {
@@ -222,10 +253,19 @@
             background-color: #c0392b;
         }
         
+        .btn-pdf {
+            background-color: #e74c3c;
+            color: white;
+        }
+        
+        .btn-pdf:hover {
+            background-color: #c0392b;
+        }
+        
         footer {
             margin-top: 20px;
             text-align: center;
-            font-size: 9pt;
+            font-size: 10pt;
             color: #7f8c8d;
         }
         
@@ -271,8 +311,8 @@
             }
             
             th, td {
-                padding: 5px 6px;
-                font-size: 7pt;
+                padding: 6px 8px;
+                font-size: 8pt;
             }
         }
 
@@ -288,6 +328,7 @@
             z-index: 1000;
             opacity: 0;
             transition: opacity 0.3s ease;
+            max-width: 400px;
         }
         
         .notification.show {
@@ -304,6 +345,10 @@
         
         .notification.info {
             background-color: var(--secondary-color);
+        }
+        
+        .notification.warning {
+            background-color: var(--warning-color);
         }
         
         .firebase-status {
@@ -334,49 +379,94 @@
         }
         
         .row-actions button {
-            font-size: 8px;
-            padding: 4px 6px;
+            font-size: 9px;
+            padding: 5px 8px;
+        }
+        
+        .objet-cell {
+            width: 300px;
+        }
+        
+        .objet-cell input {
+            text-align: justify;
+            height: 60px;
+        }
+        
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-top: 15px;
+            gap: 10px;
+        }
+        
+        .pagination button {
+            padding: 5px 10px;
+        }
+        
+        .pagination-info {
+            font-size: 10pt;
+        }
+        
+        .hidden {
+            display: none;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="current-date" id="current-date"></div>
+        <div class="current-date" id="current-date">Chargement de la date...</div>
         
         <header>
             <h1>Tableau de Gestion des Délais des Marchés Publics</h1>
-           
+
         </header>
+        
+        <div class="table-controls">
+            <div class="rows-per-page">
+                <label for="rows-per-page">Lignes par page:</label>
+                <select id="rows-per-page">
+                    <option value="10">10</option>
+                    <option value="20">20</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                    <option value="500">500</option>
+                </select>
+            </div>
+            
+            <div class="pagination-info" id="pagination-info"></div>
+        </div>
         
         <div class="table-container">
             <table id="marches-table">
                 <thead>
                     <tr>
-                        <th>EXCERCICE</th>
+                        <th>EXERCICE</th>
                         <th>DAO N° OBJET</th>
-                        <th>OBJET</th>
-                        <th>TYPE DE MARCHE</th>
-                        <th>TITULAIRE DU MARCHE</th>
-                        <th>DATE RECEPTION DU BESOIN</th>
+                        <th class="objet-cell">OBJET</th>
+                        <th>TYPE DE MARCHÉ</th>
+                        <th>TITULAIRE DU MARCHÉ</th>
+                        <th>DATE RÉCEPTION DU BESOIN</th>
                         <th>DATE ENVOI AUX MEMBRES</th>
                         <th>DATE LIMITE DES REMARQUES DES MEMBRES</th>
-                        <th>DATE APPARUTION JOURNAL FR</th>
-                        <th>DATE APPARUTION JOURNAL AR</th>
+                        <th>DATE APPARITION JOURNAL FR</th>
+                        <th>DATE APPARITION JOURNAL AR</th>
                         <th>DATE INSERTION AU PORTAIL</th>
                         <th>DATE OUVERTURE DES PLIS</th>
                         <th>NOMBRE DE JOURS DE PUBLICATION</th>
-                        <th>VISITE DES LIEUX EXIGEE</th>
+                        <th>VISITE DES LIEUX EXIGÉE</th>
                         <th>INTERVALLE DE LA VISITE DES LIEUX</th>
-                        <th>DATE LIMITE POUR RECEPTION DES REPONSES D'ECLARCISSEMENT EN INTERNE</th>
-                        <th>DATE LIMITE POUR INSERTION DES REPONSES D'ECLARCISSEMENT AU PORTAIL</th>
-                        <th>DATE D'ACHEVEMENT DES TRAVAUX</th>
-                        <th>DATE INSERTION EXTRAIT + RESULTAT</th>
-                        <th>DATE LIMITE POUR ENVOI DES LETTRES D'ATTRIBUTION ET ECARTEMENT</th>
+                        <th>DATE LIMITE POUR RÉCEPTION DES RÉPONSES D'ÉCLAIRCISSEMENT EN INTERNE</th>
+                        <th>DATE LIMITE POUR INSERTION DES RÉPONSES D'ÉCLAIRCISSEMENT AU PORTAIL</th>
+                        <th>DATE D'ACHÈVEMENT DES TRAVAUX</th>
+                        <th>DATE INSERTION EXTRAIT + RÉSULTAT</th>
+                        <th>DATE LIMITE POUR ENVOI DES LETTRES D'ATTRIBUTION ET ÉCARTEMENT</th>
                         <th>DATE LIMITE POUR APPROBATION</th>
                         <th>MAINTIEN D'OFFRES</th>
+                        <th>DATE LIMITE APRÈS MAINTIEN</th>
                         <th>DATE D'APPROBATION</th>
                         <th>DATE NOTIFICATION D'APPROBATION</th>
-                        <th>DATE LIMITE DE LA CAUTION DEFINITIVE</th>
+                        <th>DATE LIMITE DE LA CAUTION DÉFINITIVE</th>
                         <th>ALERTES</th>
                         <th>ACTIONS</th>
                     </tr>
@@ -387,11 +477,18 @@
             </table>
         </div>
         
+        <div class="pagination">
+            <button id="prev-page" class="btn-secondary">Précédent</button>
+            <span id="page-info">Page 1</span>
+            <button id="next-page" class="btn-secondary">Suivant</button>
+        </div>
+        
         <div class="actions">
             <button class="btn-secondary" id="add-row">Ajouter une ligne</button>
             <button class="btn-success" id="load-data">Charger depuis Firebase</button>
             <button class="btn-primary" id="save-all">Sauvegarder tout</button>
             <button class="btn-danger" id="delete-all">Tout supprimer</button>
+            <button class="btn-pdf" id="export-pdf">Exporter en PDF</button>
         </div>
         
         <footer>
@@ -436,7 +533,10 @@
         // Variables globales
         let currentRowId = 1;
         let isInitialized = false;
-        let autoSaveEnabled = true;
+        let autoSaveEnabled = false;
+        let currentPage = 1;
+        let rowsPerPage = 10;
+        let allRows = [];
 
         document.addEventListener('DOMContentLoaded', function() {
             // Mettre à jour la date actuelle
@@ -464,6 +564,7 @@
             // Ajouter une nouvelle ligne
             document.getElementById('add-row').addEventListener('click', function() {
                 addNewRow();
+                updatePagination();
                 showNotification('Nouvelle ligne ajoutée', 'info');
             });
             
@@ -482,6 +583,34 @@
                 if (confirm('Êtes-vous sûr de vouloir supprimer TOUTES les données ? Cette action est irréversible.')) {
                     deleteAllData();
                 }
+            });
+            
+            // Exporter en PDF
+            document.getElementById('export-pdf').addEventListener('click', function() {
+                exportToPDF();
+            });
+            
+            // Gérer la pagination
+            document.getElementById('prev-page').addEventListener('click', function() {
+                if (currentPage > 1) {
+                    currentPage--;
+                    updatePagination();
+                }
+            });
+            
+            document.getElementById('next-page').addEventListener('click', function() {
+                const totalPages = Math.ceil(allRows.length / rowsPerPage);
+                if (currentPage < totalPages) {
+                    currentPage++;
+                    updatePagination();
+                }
+            });
+            
+            // Gérer le changement du nombre de lignes par page
+            document.getElementById('rows-per-page').addEventListener('change', function() {
+                rowsPerPage = parseInt(this.value);
+                currentPage = 1;
+                updatePagination();
             });
         });
 
@@ -506,13 +635,13 @@
             newRow.setAttribute('data-row-id', rowId);
             
             // Déterminer la valeur sélectionnée pour le maintien
-            let maintienSelected = rowData?.maintienOffres?.type || '';
+            let maintienSelected = rowData?.maintienOffres?.type || 'none';
             let maintienCustomValue = rowData?.maintienOffres?.customValue || '';
             
             newRow.innerHTML = `
                 <td><input type="text" class="exercice" placeholder="Ex: 2023" value="${rowData?.exercice || ''}"></td>
                 <td><input type="text" class="dao" placeholder="N° DAO" value="${rowData?.dao || ''}"></td>
-                <td><input type="text" class="objet" placeholder="Objet du marché" value="${rowData?.objet || ''}"></td>
+                <td class="objet-cell"><input type="text" class="objet" placeholder="Objet du marché" value="${rowData?.objet || ''}"></td>
                 <td>
                     <select class="type-marche">
                         <option value="">Sélectionner</option>
@@ -546,6 +675,9 @@
                 <td>
                     <div class="maintien-container">
                         <div class="maintien-option">
+                            <input type="radio" name="maintien-${rowId}" value="none" class="maintien-radio" ${maintienSelected === 'none' ? 'checked' : ''}> Pas besoin
+                        </div>
+                        <div class="maintien-option">
                             <input type="radio" name="maintien-${rowId}" value="1" class="maintien-radio" ${maintienSelected === '1' ? 'checked' : ''}> Un mois (30 jours)
                         </div>
                         <div class="maintien-option">
@@ -559,6 +691,7 @@
                         </div>
                     </div>
                 </td>
+                <td><input type="date" class="date-limite-apres-maintien" readonly value="${rowData?.dateLimiteApresMaintien || ''}"></td>
                 <td><input type="date" class="date-approbation" value="${rowData?.dateApprobation || ''}"></td>
                 <td><input type="date" class="date-notification-approbation" value="${rowData?.dateNotificationApprobation || ''}"></td>
                 <td><input type="date" class="date-limite-caution-definitive" readonly value="${rowData?.dateLimiteCautionDefinitive || ''}"></td>
@@ -867,6 +1000,25 @@
             if (dateOuverturePlis) {
                 const dateLimiteApprobation = addDays(dateOuverturePlis, 59);
                 row.querySelector('.date-limite-approbation').value = formatDateForInput(dateLimiteApprobation);
+                
+                // Calcul de la date limite après maintien
+                const maintienRadio = row.querySelector('.maintien-radio:checked');
+                let joursAjoutes = 0;
+                
+                if (maintienRadio) {
+                    if (maintienRadio.value === '1') {
+                        joursAjoutes = 30;
+                    } else if (maintienRadio.value === '12') {
+                        joursAjoutes = 365;
+                    } else if (maintienRadio.value === 'custom') {
+                        const customValue = parseInt(row.querySelector('.maintien-custom').value) || 0;
+                        joursAjoutes = customValue * 30; // Approximation : 1 mois = 30 jours
+                    }
+                    // Si "Pas besoin" (none), joursAjoutes reste 0
+                }
+                
+                const dateLimiteApresMaintien = addDays(dateLimiteApprobation, joursAjoutes);
+                row.querySelector('.date-limite-apres-maintien').value = formatDateForInput(dateLimiteApresMaintien);
             }
             
             // Calcul de la date limite de la caution définitive
@@ -958,6 +1110,40 @@
             const dateLimiteApprobation = row.querySelector('.date-limite-approbation').value;
             const dateApprobation = row.querySelector('.date-approbation').value;
             const dateNotificationApprobation = row.querySelector('.date-notification-approbation').value;
+            const dateLimiteApresMaintien = row.querySelector('.date-limite-apres-maintien').value;
+            const maintienRadio = row.querySelector('.maintien-radio:checked');
+            const maintienActive = maintienRadio && maintienRadio.value !== 'none';
+            
+            // Vérifier que la date de notification d'approbation est >= date d'approbation
+            if (dateApprobation && dateNotificationApprobation) {
+                const dateApp = new Date(dateApprobation);
+                const dateNotif = new Date(dateNotificationApprobation);
+                
+                if (dateNotif < dateApp) {
+                    alertes.push("La date de notification d'approbation ne peut pas être avant la date d'approbation");
+                    row.querySelector('.date-notification-approbation').classList.add('alert-cell');
+                } else {
+                    row.querySelector('.date-notification-approbation').classList.remove('alert-cell');
+                }
+            }
+            
+            // Vérifier que la date de notification d'approbation est avant la date limite appropriée
+            if (dateNotificationApprobation) {
+                let dateLimiteNotification;
+                
+                if (maintienActive && dateLimiteApresMaintien) {
+                    dateLimiteNotification = new Date(dateLimiteApresMaintien);
+                } else if (dateLimiteApprobation) {
+                    dateLimiteNotification = new Date(dateLimiteApprobation);
+                }
+                
+                if (dateLimiteNotification && new Date(dateNotificationApprobation) > dateLimiteNotification) {
+                    alertes.push("Date de notification d'approbation dépasse la limite");
+                    row.querySelector('.date-notification-approbation').classList.add('alert-cell');
+                } else {
+                    row.querySelector('.date-notification-approbation').classList.remove('alert-cell');
+                }
+            }
             
             if (dateOuverturePlis && dateLimiteApprobation && dateApprobation) {
                 const dateLimite = new Date(dateLimiteApprobation);
@@ -968,19 +1154,6 @@
                     row.querySelector('.date-approbation').classList.add('alert-cell');
                 } else {
                     row.querySelector('.date-approbation').classList.remove('alert-cell');
-                }
-            }
-            
-            // Vérifier que la date de notification d'approbation ne dépasse pas date d'ouverture des plis + 59j
-            if (dateOuverturePlis && dateNotificationApprobation) {
-                const dateLimite = addDays(dateOuverturePlis, 59);
-                const dateNotification = new Date(dateNotificationApprobation);
-                
-                if (dateNotification > dateLimite) {
-                    alertes.push("Date de notification d'approbation dépasse la limite (59j après ouverture des plis)");
-                    row.querySelector('.date-notification-approbation').classList.add('alert-cell');
-                } else {
-                    row.querySelector('.date-notification-approbation').classList.remove('alert-cell');
                 }
             }
             
@@ -1060,7 +1233,7 @@
             const dateLimiteApprobation = row.querySelector('.date-limite-approbation').value;
             
             // Récupérer les données de maintien d'offres
-            let maintienOffres = { type: '', customValue: null };
+            let maintienOffres = { type: 'none', customValue: null };
             const maintienRadio = row.querySelector('.maintien-radio:checked');
             if (maintienRadio) {
                 maintienOffres.type = maintienRadio.value;
@@ -1069,6 +1242,7 @@
                 }
             }
             
+            const dateLimiteApresMaintien = row.querySelector('.date-limite-apres-maintien').value;
             const dateApprobation = row.querySelector('.date-approbation').value;
             const dateNotificationApprobation = row.querySelector('.date-notification-approbation').value;
             const dateLimiteCautionDefinitive = row.querySelector('.date-limite-caution-definitive').value;
@@ -1101,6 +1275,7 @@
                 dateLimiteEnvoiLettresAttributionEcartement,
                 dateLimiteApprobation,
                 maintienOffres,
+                dateLimiteApresMaintien,
                 dateApprobation,
                 dateNotificationApprobation,
                 dateLimiteCautionDefinitive,
@@ -1131,7 +1306,8 @@
             // Sauvegarder dans Firebase
             db.collection('marches').doc(rowId).set(rowData)
                 .then(() => {
-                    showNotification('Ligne sauvegardée avec succès', 'success');
+                    // Pas de notification comme demandé, sauf si c'est une sauvegarde manuelle
+                    // showNotification('Ligne sauvegardée avec succès', 'success');
                     console.log('Données sauvegardées:', rowData);
                 })
                 .catch((error) => {
@@ -1200,26 +1376,58 @@
                 .then((querySnapshot) => {
                     // Vider le tableau
                     document.getElementById('table-body').innerHTML = '';
+                    allRows = [];
                     
                     if (querySnapshot.empty) {
                         showNotification('Aucune donnée trouvée dans Firebase', 'info');
                         addNewRow();
+                        updatePagination();
                         return;
                     }
                     
                     let loadedCount = 0;
                     querySnapshot.forEach((doc) => {
                         const data = doc.data();
-                        addNewRow(data);
+                        const rowElement = addNewRow(data);
+                        allRows.push(rowElement);
                         loadedCount++;
                     });
                     
                     showNotification(`${loadedCount} ligne(s) chargée(s) depuis Firebase`, 'success');
+                    updatePagination();
                 })
                 .catch((error) => {
                     console.error('Erreur lors du chargement:', error);
                     showNotification('Erreur lors du chargement des données: ' + error.message, 'error');
                 });
+        }
+
+        // Fonction pour mettre à jour la pagination
+        function updatePagination() {
+            const rows = document.querySelectorAll('#table-body tr');
+            allRows = Array.from(rows);
+            
+            const totalPages = Math.ceil(allRows.length / rowsPerPage);
+            const startIndex = (currentPage - 1) * rowsPerPage;
+            const endIndex = startIndex + rowsPerPage;
+            
+            // Masquer toutes les lignes
+            allRows.forEach(row => {
+                row.style.display = 'none';
+            });
+            
+            // Afficher les lignes de la page actuelle
+            for (let i = startIndex; i < endIndex && i < allRows.length; i++) {
+                allRows[i].style.display = '';
+            }
+            
+            // Mettre à jour l'info de pagination
+            document.getElementById('page-info').textContent = `Page ${currentPage} / ${totalPages || 1}`;
+            document.getElementById('pagination-info').textContent = `Affichage des lignes ${startIndex + 1} à ${Math.min(endIndex, allRows.length)} sur ${allRows.length}`;
+            
+            // Activer/désactiver les boutons de pagination
+            document.getElementById('prev-page').disabled = currentPage === 1;
+            document.getElementById('next-page').disabled = currentPage === totalPages || totalPages === 0;
         }
 
         // Fonction pour supprimer une ligne
@@ -1238,6 +1446,7 @@
                         if (row) {
                             row.remove();
                             showNotification('Ligne supprimée avec succès', 'success');
+                            updatePagination();
                         }
                     })
                     .catch((error) => {
@@ -1267,14 +1476,122 @@
                 .then(() => {
                     // Vider le tableau
                     document.getElementById('table-body').innerHTML = '';
+                    allRows = [];
                     addNewRow();
                     showNotification('Toutes les données ont été supprimées', 'success');
+                    updatePagination();
                 })
                 .catch((error) => {
                     console.error('Erreur lors de la suppression:', error);
                     showNotification('Erreur lors de la suppression: ' + error.message, 'error');
                 });
         }
+
+        // Fonction pour exporter en PDF
+        function exportToPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('l', 'mm', 'a4');
+            
+            // Titre du document
+            doc.setFontSize(16);
+            doc.text('Tableau de Gestion des Délais des Marchés Publics', 15, 15);
+            
+            // Date d'exportation
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('fr-FR');
+            doc.setFontSize(10);
+            doc.text(`Exporté le: ${dateStr}`, 15, 22);
+            
+            // Préparer les données du tableau
+            const tableRows = [];
+            const headers = [
+                'Exercice',
+                'DAO N°',
+                'Objet',
+                'Type',
+                'Titulaire',
+                'Date Récep. Besoin',
+                'Date Envoi Membres',
+                'Date Limite Remarques',
+                'Date App. Journal FR',
+                'Date App. Journal AR',
+                'Date Insert. Portail',
+                'Date Ouverture Plis',
+                'Jours Publication',
+                'Visite Lieux',
+                'Intervalle Visite',
+                'Date Limite Réponses Interne',
+                'Date Limite Réponses Portail',
+                'Date Achèvement Travaux',
+                'Date Insert. Extrait',
+                'Date Limite Envoi Lettres',
+                'Date Limite Approbation',
+                'Maintien Offres',
+                'Date Limite Après Maintien',
+                'Date Approbation',
+                'Date Notification Approbation',
+                'Date Limite Caution'
+            ];
+            
+            // Récupérer les données de toutes les lignes
+            const rows = document.querySelectorAll('#table-body tr');
+            rows.forEach(row => {
+                const rowData = getRowData(row.getAttribute('data-row-id'));
+                if (rowData) {
+                    const maintienText = rowData.maintienOffres.type === 'none' ? 'Pas besoin' : 
+                                       rowData.maintienOffres.type === '1' ? '1 mois' :
+                                       rowData.maintienOffres.type === '12' ? '1 an' :
+                                       `${rowData.maintienOffres.customValue} mois`;
+                    
+                    tableRows.push([
+                        rowData.exercice || '',
+                        rowData.dao || '',
+                        rowData.objet || '',
+                        rowData.typeMarche || '',
+                        rowData.titulaireMarche || '',
+                        rowData.dateReceptionBesoin || '',
+                        rowData.dateEnvoiMembres || '',
+                        rowData.dateLimiteRemarquesMembres || '',
+                        rowData.dateApparitionJournalFr || '',
+                        rowData.dateApparitionJournalAr || '',
+                        rowData.dateInsertionPortail || '',
+                        rowData.dateOuverturePlis || '',
+                        rowData.joursPublication || '',
+                        rowData.visiteLieuxExigee || '',
+                        rowData.intervalleVisiteLieux || '',
+                        rowData.dateLimiteReponsesEclaircissementInterne || '',
+                        rowData.dateLimiteInsertionReponsesEclaircissementPortail || '',
+                        rowData.dateAchevementTravaux || '',
+                        rowData.dateInsertionExtraitResultat || '',
+                        rowData.dateLimiteEnvoiLettresAttributionEcartement || '',
+                        rowData.dateLimiteApprobation || '',
+                        maintienText,
+                        rowData.dateLimiteApresMaintien || '',
+                        rowData.dateApprobation || '',
+                        rowData.dateNotificationApprobation || '',
+                        rowData.dateLimiteCautionDefinitive || ''
+                    ]);
+                }
+            });
+            
+            // Générer le tableau
+            doc.autoTable({
+                head: [headers],
+                body: tableRows,
+                startY: 30,
+                styles: { fontSize: 6, cellPadding: 1 },
+                headStyles: { fillColor: [52, 152, 219] },
+                alternateRowStyles: { fillColor: [240, 240, 240] },
+                margin: { top: 30 }
+            });
+            
+            // Sauvegarder le PDF
+            doc.save('tableau_marches_publics.pdf');
+            showNotification('PDF généré avec succès', 'success');
+        }
+
+        // Initialiser la pagination
+        updatePagination();
     </script>
 </body>
 </html>
