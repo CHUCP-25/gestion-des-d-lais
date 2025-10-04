@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tableau de Gestion des Délais des Marchés Publics</title>
+    
+    <!-- Intégration Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    
     <style>
         :root {
             --primary-color: #2c3e50;
@@ -190,6 +195,24 @@
             background-color: #d5dbdb;
         }
         
+        .btn-success {
+            background-color: var(--success-color);
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background-color: #27ae60;
+        }
+        
+        .btn-warning {
+            background-color: var(--warning-color);
+            color: white;
+        }
+        
+        .btn-warning:hover {
+            background-color: #e67e22;
+        }
+        
         footer {
             margin-top: 20px;
             text-align: center;
@@ -243,6 +266,36 @@
                 font-size: 7pt;
             }
         }
+
+        /* Styles pour les notifications */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 15px;
+            border-radius: 4px;
+            color: white;
+            font-weight: bold;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .notification.show {
+            opacity: 1;
+        }
+        
+        .notification.success {
+            background-color: var(--success-color);
+        }
+        
+        .notification.error {
+            background-color: var(--accent-color);
+        }
+        
+        .notification.info {
+            background-color: var(--secondary-color);
+        }
     </style>
 </head>
 <body>
@@ -251,7 +304,6 @@
         
         <header>
             <h1>Tableau de Gestion des Délais des Marchés Publics</h1>
-           
         </header>
         
         <div class="table-container">
@@ -284,68 +336,19 @@
                         <th>DATE NOTIFICATION D'APPROBATION</th>
                         <th>DATE LIMITE DE LA CAUTION DEFINITIVE</th>
                         <th>ALERTES</th>
+                        <th>ACTIONS</th>
                     </tr>
                 </thead>
-                <tbody>
-                    <tr>
-                        <td><input type="text" class="exercice" placeholder="Ex: 2023"></td>
-                        <td><input type="text" class="dao" placeholder="N° DAO"></td>
-                        <td><input type="text" class="objet" placeholder="Objet du marché"></td>
-                        <td>
-                            <select class="type-marche">
-                                <option value="">Sélectionner</option>
-                                <option value="travaux-fourniture">Travaux & Fourniture</option>
-                                <option value="services">Services</option>
-                            </select>
-                        </td>
-                        <td><input type="text" class="titulaire-marche" placeholder="Nom du titulaire"></td>
-                        <td><input type="date" class="date-reception-besoin"></td>
-                        <td><input type="date" class="date-envoi-membres"></td>
-                        <td><input type="date" class="date-limite-remarques-membres" readonly></td>
-                        <td><input type="date" class="date-apparition-journal-fr"></td>
-                        <td><input type="date" class="date-apparition-journal-ar"></td>
-                        <td><input type="date" class="date-insertion-portail"></td>
-                        <td><input type="date" class="date-ouverture-plis" readonly></td>
-                        <td><input type="text" class="jours-publication" placeholder="Calcul automatique" readonly></td>
-                        <td>
-                            <select class="visite-lieux-exigee">
-                                <option value="">Sélectionner</option>
-                                <option value="OUI">OUI</option>
-                                <option value="NON">NON</option>
-                            </select>
-                        </td>
-                        <td><input type="text" class="intervalle-visite-lieux" placeholder="Calcul automatique" readonly style="width: 180px;"></td>
-                        <td><input type="date" class="date-limite-reponses-eclaircissement-interne" readonly></td>
-                        <td><input type="date" class="date-limite-insertion-reponses-eclaircissement-portail" readonly></td>
-                        <td><input type="date" class="date-achevement-travaux"></td>
-                        <td><input type="date" class="date-insertion-extrait-resultat" readonly></td>
-                        <td><input type="date" class="date-limite-envoi-lettres-attribution-ecartement" readonly></td>
-                        <td><input type="date" class="date-limite-approbation" readonly></td>
-                        <td>
-                            <div class="maintien-container">
-                                <div class="maintien-option">
-                                    <input type="radio" name="maintien" value="1" class="maintien-radio"> Un mois (30 jours)
-                                </div>
-                                <div class="maintien-option">
-                                    <input type="radio" name="maintien" value="12" class="maintien-radio"> Une année (365 jours)
-                                </div>
-                                <div class="maintien-option">
-                                    <input type="radio" name="maintien" value="custom" class="maintien-radio"> Autre: 
-                                    <input type="number" class="maintien-custom" placeholder="Mois" min="1" style="width: 50px;" disabled>
-                                </div>
-                            </div>
-                        </td>
-                        <td><input type="date" class="date-approbation"></td>
-                        <td><input type="date" class="date-notification-approbation"></td>
-                        <td><input type="date" class="date-limite-caution-definitive" readonly></td>
-                        <td class="alertes"></td>
-                    </tr>
+                <tbody id="table-body">
+                    <!-- Les lignes seront ajoutées dynamiquement -->
                 </tbody>
             </table>
         </div>
         
         <div class="actions">
             <button class="btn-secondary" id="add-row">Ajouter une ligne</button>
+            <button class="btn-primary" id="save-all">Sauvegarder tout</button>
+            <button class="btn-success" id="load-data">Charger les données</button>
         </div>
         
         <footer>
@@ -353,7 +356,28 @@
         </footer>
     </div>
 
+    <!-- Notification -->
+    <div id="notification" class="notification"></div>
+
     <script>
+        // Configuration Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyB67TGdNHgn9q_Mi9KaONkNmhN_99rdh6Y",
+            authDomain: "gestion-des-delais.firebaseapp.com",
+            projectId: "gestion-des-delais",
+            storageBucket: "gestion-des-delais.firebasestorage.app",
+            messagingSenderId: "166995821685",
+            appId: "1:166995821685:web:9c9ad507be77ee45b6243c"
+        };
+
+        // Initialiser Firebase
+        const app = firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        // Variables globales
+        let currentRowId = 1;
+        let isInitialized = false;
+
         document.addEventListener('DOMContentLoaded', function() {
             // Mettre à jour la date actuelle
             function updateCurrentDate() {
@@ -366,444 +390,698 @@
             updateCurrentDate();
             setInterval(updateCurrentDate, 1000);
             
+            // Initialiser la première ligne
+            addNewRow();
+            isInitialized = true;
+            
             // Ajouter une nouvelle ligne
             document.getElementById('add-row').addEventListener('click', function() {
-                const tbody = document.querySelector('#marches-table tbody');
-                const newRow = document.createElement('tr');
-                newRow.innerHTML = `
-                    <td><input type="text" class="exercice" placeholder="Ex: 2023"></td>
-                    <td><input type="text" class="dao" placeholder="N° DAO"></td>
-                    <td><input type="text" class="objet" placeholder="Objet du marché"></td>
-                    <td>
-                        <select class="type-marche">
-                            <option value="">Sélectionner</option>
-                            <option value="travaux-fourniture">Travaux & Fourniture</option>
-                            <option value="services">Services</option>
-                        </select>
-                    </td>
-                    <td><input type="text" class="titulaire-marche" placeholder="Nom du titulaire"></td>
-                    <td><input type="date" class="date-reception-besoin"></td>
-                    <td><input type="date" class="date-envoi-membres"></td>
-                    <td><input type="date" class="date-limite-remarques-membres" readonly></td>
-                    <td><input type="date" class="date-apparition-journal-fr"></td>
-                    <td><input type="date" class="date-apparition-journal-ar"></td>
-                    <td><input type="date" class="date-insertion-portail"></td>
-                    <td><input type="date" class="date-ouverture-plis" readonly></td>
-                    <td><input type="text" class="jours-publication" placeholder="Calcul automatique" readonly></td>
-                    <td>
-                        <select class="visite-lieux-exigee">
-                            <option value="">Sélectionner</option>
-                            <option value="OUI">OUI</option>
-                            <option value="NON">NON</option>
-                        </select>
-                    </td>
-                    <td><input type="text" class="intervalle-visite-lieux" placeholder="Calcul automatique" readonly style="width: 180px;"></td>
-                    <td><input type="date" class="date-limite-reponses-eclaircissement-interne" readonly></td>
-                    <td><input type="date" class="date-limite-insertion-reponses-eclaircissement-portail" readonly></td>
-                    <td><input type="date" class="date-achevement-travaux"></td>
-                    <td><input type="date" class="date-insertion-extrait-resultat" readonly></td>
-                    <td><input type="date" class="date-limite-envoi-lettres-attribution-ecartement" readonly></td>
-                    <td><input type="date" class="date-limite-approbation" readonly></td>
-                    <td>
-                        <div class="maintien-container">
-                            <div class="maintien-option">
-                                <input type="radio" name="maintien" value="1" class="maintien-radio"> Un mois (30 jours)
-                            </div>
-                            <div class="maintien-option">
-                                <input type="radio" name="maintien" value="12" class="maintien-radio"> Une année (365 jours)
-                            </div>
-                            <div class="maintien-option">
-                                <input type="radio" name="maintien" value="custom" class="maintien-radio"> Autre: 
-                                <input type="number" class="maintien-custom" placeholder="Mois" min="1" style="width: 50px;" disabled>
-                            </div>
+                addNewRow();
+                showNotification('Nouvelle ligne ajoutée', 'info');
+            });
+            
+            // Sauvegarder toutes les données
+            document.getElementById('save-all').addEventListener('click', function() {
+                saveAllData();
+            });
+            
+            // Charger les données depuis Firebase
+            document.getElementById('load-data').addEventListener('click', function() {
+                loadDataFromFirebase();
+            });
+        });
+
+        // Fonction pour ajouter une nouvelle ligne
+        function addNewRow(rowData = null) {
+            const tbody = document.getElementById('table-body');
+            const rowId = currentRowId++;
+            
+            const newRow = document.createElement('tr');
+            newRow.setAttribute('data-row-id', rowId);
+            
+            newRow.innerHTML = `
+                <td><input type="text" class="exercice" placeholder="Ex: 2023" value="${rowData?.exercice || ''}"></td>
+                <td><input type="text" class="dao" placeholder="N° DAO" value="${rowData?.dao || ''}"></td>
+                <td><input type="text" class="objet" placeholder="Objet du marché" value="${rowData?.objet || ''}"></td>
+                <td>
+                    <select class="type-marche">
+                        <option value="">Sélectionner</option>
+                        <option value="travaux-fourniture" ${rowData?.typeMarche === 'travaux-fourniture' ? 'selected' : ''}>Travaux & Fourniture</option>
+                        <option value="services" ${rowData?.typeMarche === 'services' ? 'selected' : ''}>Services</option>
+                    </select>
+                </td>
+                <td><input type="text" class="titulaire-marche" placeholder="Nom du titulaire" value="${rowData?.titulaireMarche || ''}"></td>
+                <td><input type="date" class="date-reception-besoin" value="${rowData?.dateReceptionBesoin || ''}"></td>
+                <td><input type="date" class="date-envoi-membres" value="${rowData?.dateEnvoiMembres || ''}"></td>
+                <td><input type="date" class="date-limite-remarques-membres" readonly value="${rowData?.dateLimiteRemarquesMembres || ''}"></td>
+                <td><input type="date" class="date-apparition-journal-fr" value="${rowData?.dateApparitionJournalFr || ''}"></td>
+                <td><input type="date" class="date-apparition-journal-ar" value="${rowData?.dateApparitionJournalAr || ''}"></td>
+                <td><input type="date" class="date-insertion-portail" value="${rowData?.dateInsertionPortail || ''}"></td>
+                <td><input type="date" class="date-ouverture-plis" readonly value="${rowData?.dateOuverturePlis || ''}"></td>
+                <td><input type="text" class="jours-publication" placeholder="Calcul automatique" readonly value="${rowData?.joursPublication || ''}"></td>
+                <td>
+                    <select class="visite-lieux-exigee">
+                        <option value="">Sélectionner</option>
+                        <option value="OUI" ${rowData?.visiteLieuxExigee === 'OUI' ? 'selected' : ''}>OUI</option>
+                        <option value="NON" ${rowData?.visiteLieuxExigee === 'NON' ? 'selected' : ''}>NON</option>
+                    </select>
+                </td>
+                <td><input type="text" class="intervalle-visite-lieux" placeholder="Calcul automatique" readonly style="width: 180px;" value="${rowData?.intervalleVisiteLieux || ''}"></td>
+                <td><input type="date" class="date-limite-reponses-eclaircissement-interne" readonly value="${rowData?.dateLimiteReponsesEclaircissementInterne || ''}"></td>
+                <td><input type="date" class="date-limite-insertion-reponses-eclaircissement-portail" readonly value="${rowData?.dateLimiteInsertionReponsesEclaircissementPortail || ''}"></td>
+                <td><input type="date" class="date-achevement-travaux" value="${rowData?.dateAchevementTravaux || ''}"></td>
+                <td><input type="date" class="date-insertion-extrait-resultat" readonly value="${rowData?.dateInsertionExtraitResultat || ''}"></td>
+                <td><input type="date" class="date-limite-envoi-lettres-attribution-ecartement" readonly value="${rowData?.dateLimiteEnvoiLettresAttributionEcartement || ''}"></td>
+                <td><input type="date" class="date-limite-approbation" readonly value="${rowData?.dateLimiteApprobation || ''}"></td>
+                <td>
+                    <div class="maintien-container">
+                        <div class="maintien-option">
+                            <input type="radio" name="maintien-${rowId}" value="1" class="maintien-radio" ${rowData?.maintienOffres?.type === '1' ? 'checked' : ''}> Un mois (30 jours)
                         </div>
-                    </td>
-                    <td><input type="date" class="date-approbation"></td>
-                    <td><input type="date" class="date-notification-approbation"></td>
-                    <td><input type="date" class="date-limite-caution-definitive" readonly></td>
-                    <td class="alertes"></td>
-                `;
-                tbody.appendChild(newRow);
-                
-                // Ajouter les écouteurs d'événements pour la nouvelle ligne
-                addEventListenersToRow(newRow);
+                        <div class="maintien-option">
+                            <input type="radio" name="maintien-${rowId}" value="12" class="maintien-radio" ${rowData?.maintienOffres?.type === '12' ? 'checked' : ''}> Une année (365 jours)
+                        </div>
+                        <div class="maintien-option">
+                            <input type="radio" name="maintien-${rowId}" value="custom" class="maintien-radio" ${rowData?.maintienOffres?.type === 'custom' ? 'checked' : ''}> Autre: 
+                            <input type="number" class="maintien-custom" placeholder="Mois" min="1" style="width: 50px;" 
+                                value="${rowData?.maintienOffres?.customValue || ''}" 
+                                ${rowData?.maintienOffres?.type === 'custom' ? '' : 'disabled'}>
+                        </div>
+                    </div>
+                </td>
+                <td><input type="date" class="date-approbation" value="${rowData?.dateApprobation || ''}"></td>
+                <td><input type="date" class="date-notification-approbation" value="${rowData?.dateNotificationApprobation || ''}"></td>
+                <td><input type="date" class="date-limite-caution-definitive" readonly value="${rowData?.dateLimiteCautionDefinitive || ''}"></td>
+                <td class="alertes">${rowData?.alertes ? rowData.alertes.map(alerte => `<div class="alert-message">${alerte}</div>`).join('') : ''}</td>
+                <td>
+                    <button class="btn-warning save-row" data-row-id="${rowId}">Sauvegarder</button>
+                    <button class="btn-secondary delete-row" data-row-id="${rowId}">Supprimer</button>
+                </td>
+            `;
+            
+            tbody.appendChild(newRow);
+            
+            // Ajouter les écouteurs d'événements pour la nouvelle ligne
+            addEventListenersToRow(newRow);
+            
+            // Si des données ont été fournies, calculer les délais
+            if (rowData) {
+                setTimeout(() => {
+                    calculateDelays({target: newRow});
+                    checkAlertsForRow(newRow);
+                }, 100);
+            }
+            
+            return newRow;
+        }
+
+        // Ajouter les écouteurs d'événements pour une ligne
+        function addEventListenersToRow(row) {
+            // Écouteurs pour les champs de date qui déclenchent les calculs
+            const dateFields = row.querySelectorAll('input[type="date"]:not([readonly])');
+            dateFields.forEach(field => {
+                field.addEventListener('change', calculateDelays);
             });
-
-            // Ajouter les écouteurs d'événements pour toutes les lignes existantes
-            function addEventListenersToRow(row) {
-                // Écouteurs pour les champs de date qui déclenchent les calculs
-                const dateFields = row.querySelectorAll('input[type="date"]:not([readonly])');
-                dateFields.forEach(field => {
-                    field.addEventListener('change', calculateDelays);
-                });
-                
-                // Écouteur pour le champ de type de marché
-                const typeMarche = row.querySelector('.type-marche');
-                if (typeMarche) {
-                    typeMarche.addEventListener('change', calculateDelays);
-                }
-                
-                // Écouteur pour la visite des lieux
-                const visiteLieux = row.querySelector('.visite-lieux-exigee');
-                if (visiteLieux) {
-                    visiteLieux.addEventListener('change', calculateDelays);
-                }
-                
-                // Écouteurs pour les options de maintien
-                const maintienRadios = row.querySelectorAll('.maintien-radio');
-                maintienRadios.forEach(radio => {
-                    radio.addEventListener('change', function() {
-                        const customInput = row.querySelector('.maintien-custom');
-                        if (this.value === 'custom') {
-                            customInput.disabled = false;
-                        } else {
-                            customInput.disabled = true;
-                        }
-                        calculateDelays({target: row});
-                    });
-                });
-                
-                const maintienCustom = row.querySelector('.maintien-custom');
-                if (maintienCustom) {
-                    maintienCustom.addEventListener('input', function() {
-                        calculateDelays({target: row});
-                    });
-                }
-                
-                // Écouteurs pour les champs de texte obligatoires
-                const requiredFields = row.querySelectorAll('.exercice, .dao, .objet, .titulaire-marche');
-                requiredFields.forEach(field => {
-                    field.addEventListener('input', checkAlerts);
-                });
-                
-                // Écouteur pour le champ d'approbation
-                const dateApprobation = row.querySelector('.date-approbation');
-                if (dateApprobation) {
-                    dateApprobation.addEventListener('change', checkAlerts);
-                }
-                
-                // Écouteur pour le champ de notification d'approbation
-                const dateNotificationApprobation = row.querySelector('.date-notification-approbation');
-                if (dateNotificationApprobation) {
-                    dateNotificationApprobation.addEventListener('change', checkAlerts);
-                }
+            
+            // Écouteur pour le champ de type de marché
+            const typeMarche = row.querySelector('.type-marche');
+            if (typeMarche) {
+                typeMarche.addEventListener('change', calculateDelays);
             }
-
-            // Initialiser les écouteurs d'événements pour la première ligne
-            const initialRows = document.querySelectorAll('#marches-table tbody tr');
-            initialRows.forEach(row => {
-                addEventListenersToRow(row);
+            
+            // Écouteur pour la visite des lieux
+            const visiteLieux = row.querySelector('.visite-lieux-exigee');
+            if (visiteLieux) {
+                visiteLieux.addEventListener('change', calculateDelays);
+            }
+            
+            // Écouteurs pour les options de maintien
+            const maintienRadios = row.querySelectorAll('.maintien-radio');
+            maintienRadios.forEach(radio => {
+                radio.addEventListener('change', function() {
+                    const customInput = row.querySelector('.maintien-custom');
+                    if (this.value === 'custom') {
+                        customInput.disabled = false;
+                    } else {
+                        customInput.disabled = true;
+                    }
+                    calculateDelays({target: row});
+                });
             });
-
-            // Fonction pour formater une date au format YYYY-MM-DD (pour input type="date")
-            function formatDateForInput(date) {
-                if (!date) return '';
-                const d = new Date(date);
-                const year = d.getFullYear();
-                const month = String(d.getMonth() + 1).padStart(2, '0');
-                const day = String(d.getDate()).padStart(2, '0');
-                return `${year}-${month}-${day}`;
+            
+            const maintienCustom = row.querySelector('.maintien-custom');
+            if (maintienCustom) {
+                maintienCustom.addEventListener('input', function() {
+                    calculateDelays({target: row});
+                });
             }
-
-            // Fonction pour formater une date au format JJ/MM/AAAA
-            function formatDateDisplay(date) {
-                if (!date) return '';
-                const d = new Date(date);
-                const day = String(d.getDate()).padStart(2, '0');
-                const month = String(d.getMonth() + 1).padStart(2, '0');
-                const year = d.getFullYear();
-                return `${day}/${month}/${year}`;
+            
+            // Écouteurs pour les champs de texte obligatoires
+            const requiredFields = row.querySelectorAll('.exercice, .dao, .objet, .titulaire-marche');
+            requiredFields.forEach(field => {
+                field.addEventListener('input', checkAlerts);
+            });
+            
+            // Écouteur pour le champ d'approbation
+            const dateApprobation = row.querySelector('.date-approbation');
+            if (dateApprobation) {
+                dateApprobation.addEventListener('change', checkAlerts);
             }
-
-            // Fonction pour ajouter des jours à une date
-            function addDays(date, days) {
-                const result = new Date(date);
-                result.setDate(result.getDate() + days);
-                return result;
+            
+            // Écouteur pour le champ de notification d'approbation
+            const dateNotificationApprobation = row.querySelector('.date-notification-approbation');
+            if (dateNotificationApprobation) {
+                dateNotificationApprobation.addEventListener('change', checkAlerts);
             }
-
-            // Fonction pour ajouter des mois à une date
-            function addMonths(date, months) {
-                const result = new Date(date);
-                result.setMonth(result.getMonth() + months);
-                return result;
+            
+            // Écouteur pour le bouton de sauvegarde de ligne
+            const saveButton = row.querySelector('.save-row');
+            if (saveButton) {
+                saveButton.addEventListener('click', function() {
+                    const rowId = this.getAttribute('data-row-id');
+                    saveRowData(rowId);
+                });
             }
-
-            // Fonction pour calculer le nombre de jours entre deux dates (en excluant les jours de début et fin)
-            function calculateDaysBetween(startDate, endDate) {
-                if (!startDate || !endDate) return 0;
-                const start = new Date(startDate);
-                const end = new Date(endDate);
-                
-                // Exclure les jours de début et fin
-                start.setDate(start.getDate() + 1);
-                end.setDate(end.getDate() - 1);
-                
-                if (start > end) return 0;
-                
-                const diffTime = end - start;
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                return diffDays >= 0 ? diffDays : 0;
+            
+            // Écouteur pour le bouton de suppression de ligne
+            const deleteButton = row.querySelector('.delete-row');
+            if (deleteButton) {
+                deleteButton.addEventListener('click', function() {
+                    const rowId = this.getAttribute('data-row-id');
+                    deleteRow(rowId);
+                });
             }
+        }
 
-            // Fonction pour calculer automatiquement les délais
-            function calculateDelays(event) {
-                const row = event.target.closest('tr');
+        // Fonction pour formater une date au format YYYY-MM-DD (pour input type="date")
+        function formatDateForInput(date) {
+            if (!date) return '';
+            const d = new Date(date);
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        // Fonction pour formater une date au format JJ/MM/AAAA
+        function formatDateDisplay(date) {
+            if (!date) return '';
+            const d = new Date(date);
+            const day = String(d.getDate()).padStart(2, '0');
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const year = d.getFullYear();
+            return `${day}/${month}/${year}`;
+        }
+
+        // Fonction pour ajouter des jours à une date
+        function addDays(date, days) {
+            const result = new Date(date);
+            result.setDate(result.getDate() + days);
+            return result;
+        }
+
+        // Fonction pour ajouter des mois à une date
+        function addMonths(date, months) {
+            const result = new Date(date);
+            result.setMonth(result.getMonth() + months);
+            return result;
+        }
+
+        // Fonction pour calculer le nombre de jours entre deux dates (en excluant les jours de début et fin)
+        function calculateDaysBetween(startDate, endDate) {
+            if (!startDate || !endDate) return 0;
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            
+            // Exclure les jours de début et fin
+            start.setDate(start.getDate() + 1);
+            end.setDate(end.getDate() - 1);
+            
+            if (start > end) return 0;
+            
+            const diffTime = end - start;
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            return diffDays >= 0 ? diffDays : 0;
+        }
+
+        // Fonction pour calculer automatiquement les délais
+        function calculateDelays(event) {
+            const row = event.target.closest('tr');
+            
+            // Récupération des dates
+            const dateEnvoiMembres = row.querySelector('.date-envoi-membres').value;
+            const dateApparitionJournalFr = row.querySelector('.date-apparition-journal-fr').value;
+            const dateApparitionJournalAr = row.querySelector('.date-apparition-journal-ar').value;
+            const dateInsertionPortail = row.querySelector('.date-insertion-portail').value;
+            const dateAchevementTravaux = row.querySelector('.date-achevement-travaux').value;
+            const dateNotificationApprobation = row.querySelector('.date-notification-approbation').value;
+            const typeMarche = row.querySelector('.type-marche').value;
+            const visiteLieuxExigee = row.querySelector('.visite-lieux-exigee').value;
+            
+            // Calcul de la date limite des remarques des membres (6 jours après date d'envoi aux membres)
+            if (dateEnvoiMembres) {
+                const dateLimiteRemarques = addDays(dateEnvoiMembres, 6);
+                row.querySelector('.date-limite-remarques-membres').value = formatDateForInput(dateLimiteRemarques);
+            }
+            
+            // Calcul de la date d'ouverture des plis (21 jours après la date la plus récente)
+            if (dateApparitionJournalFr || dateApparitionJournalAr || dateInsertionPortail) {
+                const dates = [];
+                if (dateApparitionJournalFr) dates.push(new Date(dateApparitionJournalFr));
+                if (dateApparitionJournalAr) dates.push(new Date(dateApparitionJournalAr));
+                if (dateInsertionPortail) dates.push(new Date(dateInsertionPortail));
                 
-                // Récupération des dates
-                const dateEnvoiMembres = row.querySelector('.date-envoi-membres').value;
-                const dateApparitionJournalFr = row.querySelector('.date-apparition-journal-fr').value;
-                const dateApparitionJournalAr = row.querySelector('.date-apparition-journal-ar').value;
-                const dateInsertionPortail = row.querySelector('.date-insertion-portail').value;
-                const dateAchevementTravaux = row.querySelector('.date-achevement-travaux').value;
-                const dateNotificationApprobation = row.querySelector('.date-notification-approbation').value;
-                const typeMarche = row.querySelector('.type-marche').value;
-                const visiteLieuxExigee = row.querySelector('.visite-lieux-exigee').value;
+                if (dates.length > 0) {
+                    const derniereDate = new Date(Math.max(...dates));
+                    const dateOuverturePlisCalc = addDays(derniereDate, 21);
+                    row.querySelector('.date-ouverture-plis').value = formatDateForInput(dateOuverturePlisCalc);
+                }
+            }
+            
+            // Calcul du nombre de jours de publication
+            const dateOuverturePlis = row.querySelector('.date-ouverture-plis').value;
+            if (dateOuverturePlis) {
+                const datesPublication = [];
+                if (dateApparitionJournalFr) datesPublication.push(new Date(dateApparitionJournalFr));
+                if (dateApparitionJournalAr) datesPublication.push(new Date(dateApparitionJournalAr));
+                if (dateInsertionPortail) datesPublication.push(new Date(dateInsertionPortail));
                 
-                // Calcul de la date limite des remarques des membres (6 jours après date d'envoi aux membres)
-                if (dateEnvoiMembres) {
-                    const dateLimiteRemarques = addDays(dateEnvoiMembres, 6);
-                    row.querySelector('.date-limite-remarques-membres').value = formatDateForInput(dateLimiteRemarques);
+                if (datesPublication.length > 0) {
+                    const derniereDatePublication = new Date(Math.max(...datesPublication));
+                    const joursPublication = calculateDaysBetween(derniereDatePublication, dateOuverturePlis);
+                    row.querySelector('.jours-publication').value = `${joursPublication} jours`;
+                }
+            }
+            
+            // Calcul de l'intervalle de visite des lieux (si exigée)
+            if (visiteLieuxExigee === 'OUI' && dateOuverturePlis) {
+                const dateOuverture = new Date(dateOuverturePlis);
+                
+                // Calcul du tiers de la période entre apparition dernier journal et ouverture des plis
+                const datesApparition = [];
+                if (dateApparitionJournalFr) datesApparition.push(new Date(dateApparitionJournalFr));
+                if (dateApparitionJournalAr) datesApparition.push(new Date(dateApparitionJournalAr));
+                if (dateInsertionPortail) datesApparition.push(new Date(dateInsertionPortail));
+                
+                if (datesApparition.length > 0) {
+                    const derniereDateApparition = new Date(Math.max(...datesApparition));
+                    const periode = calculateDaysBetween(derniereDateApparition, dateOuverturePlis);
+                    const tiersPeriode = Math.floor(periode / 3);
+                    
+                    // Date de début du dernier tiers
+                    const dateDebutTiers = addDays(derniereDateApparition, 2 * tiersPeriode + 1);
+                    
+                    // Date limite (6 jours avant ouverture des plis)
+                    const dateFinTiers = addDays(dateOuverture, -6);
+                    
+                    // Formater l'intervalle
+                    const intervalle = `Du ${formatDateDisplay(dateDebutTiers)} au ${formatDateDisplay(dateFinTiers)}`;
+                    row.querySelector('.intervalle-visite-lieux').value = intervalle;
+                }
+            } else {
+                row.querySelector('.intervalle-visite-lieux').value = '';
+            }
+            
+            // Calcul des dates limites pour éclaircissements
+            if (dateOuverturePlis) {
+                const dateOuverture = new Date(dateOuverturePlis);
+                
+                // Date limite pour réception des réponses d'éclaircissement en interne (5 jours avant ouverture)
+                const dateLimiteInterne = addDays(dateOuverture, -5);
+                row.querySelector('.date-limite-reponses-eclaircissement-interne').value = formatDateForInput(dateLimiteInterne);
+                
+                // Date limite pour insertion des réponses d'éclaircissement au portail (4 jours avant ouverture)
+                const dateLimitePortail = addDays(dateOuverture, -4);
+                row.querySelector('.date-limite-insertion-reponses-eclaircissement-portail').value = formatDateForInput(dateLimitePortail);
+            }
+            
+            // Calcul de la date d'insertion extrait + résultat (1 jour après achèvement des travaux)
+            if (dateAchevementTravaux) {
+                const dateInsertionExtrait = addDays(dateAchevementTravaux, 1);
+                row.querySelector('.date-insertion-extrait-resultat').value = formatDateForInput(dateInsertionExtrait);
+            }
+            
+            // Calcul de la date limite pour envoi des lettres d'attribution et écartement (3 jours après achèvement des travaux)
+            if (dateAchevementTravaux) {
+                const dateLimiteLettres = addDays(dateAchevementTravaux, 3);
+                row.querySelector('.date-limite-envoi-lettres-attribution-ecartement').value = formatDateForInput(dateLimiteLettres);
+            }
+            
+            // Calcul de la date limite pour approbation (59 jours après ouverture des plis)
+            if (dateOuverturePlis) {
+                const dateLimiteApprobation = addDays(dateOuverturePlis, 59);
+                row.querySelector('.date-limite-approbation').value = formatDateForInput(dateLimiteApprobation);
+            }
+            
+            // Calcul de la date limite de la caution définitive
+            if (dateNotificationApprobation && typeMarche) {
+                const joursCaution = typeMarche === 'travaux-fourniture' ? 20 : 30;
+                const dateLimiteCaution = addDays(dateNotificationApprobation, joursCaution);
+                row.querySelector('.date-limite-caution-definitive').value = formatDateForInput(dateLimiteCaution);
+            }
+            
+            // Vérifier les alertes après calcul
+            checkAlertsForRow(row);
+        }
+
+        // Fonction pour vérifier les alertes pour une ligne spécifique
+        function checkAlertsForRow(row) {
+            let alertes = [];
+            
+            // Vérifier les champs obligatoires
+            const exercice = row.querySelector('.exercice').value;
+            const dao = row.querySelector('.dao').value;
+            const objet = row.querySelector('.objet').value;
+            const typeMarche = row.querySelector('.type-marche').value;
+            const titulaireMarche = row.querySelector('.titulaire-marche').value;
+            
+            if (!exercice) {
+                alertes.push("Exercice manquant");
+                row.querySelector('.exercice').classList.add('alert-cell');
+            } else {
+                row.querySelector('.exercice').classList.remove('alert-cell');
+            }
+            
+            if (!dao) {
+                alertes.push("DAO N° Objet manquant");
+                row.querySelector('.dao').classList.add('alert-cell');
+            } else {
+                row.querySelector('.dao').classList.remove('alert-cell');
+            }
+            
+            if (!objet) {
+                alertes.push("Objet manquant");
+                row.querySelector('.objet').classList.add('alert-cell');
+            } else {
+                row.querySelector('.objet').classList.remove('alert-cell');
+            }
+            
+            if (!typeMarche) {
+                alertes.push("Type de marché manquant");
+                row.querySelector('.type-marche').classList.add('alert-cell');
+            } else {
+                row.querySelector('.type-marche').classList.remove('alert-cell');
+            }
+            
+            if (!titulaireMarche) {
+                alertes.push("Titulaire manquant");
+                row.querySelector('.titulaire-marche').classList.add('alert-cell');
+            } else {
+                row.querySelector('.titulaire-marche').classList.remove('alert-cell');
+            }
+            
+            // Vérifier le délai de 6 jours pour les remarques des membres
+            const dateEnvoiMembres = row.querySelector('.date-envoi-membres').value;
+            const dateLimiteRemarques = row.querySelector('.date-limite-remarques-membres').value;
+            const dateApparitionJournalFr = row.querySelector('.date-apparition-journal-fr').value;
+            const dateApparitionJournalAr = row.querySelector('.date-apparition-journal-ar').value;
+            const dateInsertionPortail = row.querySelector('.date-insertion-portail').value;
+            
+            if (dateEnvoiMembres && dateLimiteRemarques) {
+                const dateLimite = new Date(dateLimiteRemarques);
+                
+                // Vérifier si l'une des dates de publication est avant la date limite
+                let delaiNonRespecte = false;
+                if (dateApparitionJournalFr && new Date(dateApparitionJournalFr) < dateLimite) {
+                    delaiNonRespecte = true;
+                }
+                if (dateApparitionJournalAr && new Date(dateApparitionJournalAr) < dateLimite) {
+                    delaiNonRespecte = true;
+                }
+                if (dateInsertionPortail && new Date(dateInsertionPortail) < dateLimite) {
+                    delaiNonRespecte = true;
                 }
                 
-                // Calcul de la date d'ouverture des plis (21 jours après la date la plus récente)
-                if (dateApparitionJournalFr || dateApparitionJournalAr || dateInsertionPortail) {
-                    const dates = [];
-                    if (dateApparitionJournalFr) dates.push(new Date(dateApparitionJournalFr));
-                    if (dateApparitionJournalAr) dates.push(new Date(dateApparitionJournalAr));
-                    if (dateInsertionPortail) dates.push(new Date(dateInsertionPortail));
-                    
-                    if (dates.length > 0) {
-                        const derniereDate = new Date(Math.max(...dates));
-                        const dateOuverturePlisCalc = addDays(derniereDate, 21);
-                        row.querySelector('.date-ouverture-plis').value = formatDateForInput(dateOuverturePlisCalc);
-                    }
+                if (delaiNonRespecte) {
+                    alertes.push("Non respect du délai de 6j pour les remarques des membres");
                 }
+            }
+            
+            // Vérifier les dates critiques
+            const dateOuverturePlis = row.querySelector('.date-ouverture-plis').value;
+            const dateLimiteApprobation = row.querySelector('.date-limite-approbation').value;
+            const dateApprobation = row.querySelector('.date-approbation').value;
+            const dateNotificationApprobation = row.querySelector('.date-notification-approbation').value;
+            
+            if (dateOuverturePlis && dateLimiteApprobation && dateApprobation) {
+                const dateLimite = new Date(dateLimiteApprobation);
+                const dateApp = new Date(dateApprobation);
                 
-                // Calcul du nombre de jours de publication
-                const dateOuverturePlis = row.querySelector('.date-ouverture-plis').value;
-                if (dateOuverturePlis) {
-                    const datesPublication = [];
-                    if (dateApparitionJournalFr) datesPublication.push(new Date(dateApparitionJournalFr));
-                    if (dateApparitionJournalAr) datesPublication.push(new Date(dateApparitionJournalAr));
-                    if (dateInsertionPortail) datesPublication.push(new Date(dateInsertionPortail));
-                    
-                    if (datesPublication.length > 0) {
-                        const derniereDatePublication = new Date(Math.max(...datesPublication));
-                        const joursPublication = calculateDaysBetween(derniereDatePublication, dateOuverturePlis);
-                        row.querySelector('.jours-publication').value = `${joursPublication} jours`;
-                    }
-                }
-                
-                // Calcul de l'intervalle de visite des lieux (si exigée)
-                if (visiteLieuxExigee === 'OUI' && dateOuverturePlis) {
-                    const dateOuverture = new Date(dateOuverturePlis);
-                    
-                    // Calcul du tiers de la période entre apparition dernier journal et ouverture des plis
-                    const datesApparition = [];
-                    if (dateApparitionJournalFr) datesApparition.push(new Date(dateApparitionJournalFr));
-                    if (dateApparitionJournalAr) datesApparition.push(new Date(dateApparitionJournalAr));
-                    if (dateInsertionPortail) datesApparition.push(new Date(dateInsertionPortail));
-                    
-                    if (datesApparition.length > 0) {
-                        const derniereDateApparition = new Date(Math.max(...datesApparition));
-                        const periode = calculateDaysBetween(derniereDateApparition, dateOuverturePlis);
-                        const tiersPeriode = Math.floor(periode / 3);
-                        
-                        // Date de début du dernier tiers
-                        const dateDebutTiers = addDays(derniereDateApparition, 2 * tiersPeriode + 1);
-                        
-                        // Date limite (6 jours avant ouverture des plis)
-                        const dateFinTiers = addDays(dateOuverture, -6);
-                        
-                        // Formater l'intervalle
-                        const intervalle = `Du ${formatDateDisplay(dateDebutTiers)} au ${formatDateDisplay(dateFinTiers)}`;
-                        row.querySelector('.intervalle-visite-lieux').value = intervalle;
-                    }
+                if (dateApp > dateLimite) {
+                    alertes.push("Date d'approbation dépassée");
+                    row.querySelector('.date-approbation').classList.add('alert-cell');
                 } else {
-                    row.querySelector('.intervalle-visite-lieux').value = '';
+                    row.querySelector('.date-approbation').classList.remove('alert-cell');
                 }
-                
-                // Calcul des dates limites pour éclaircissements
-                if (dateOuverturePlis) {
-                    const dateOuverture = new Date(dateOuverturePlis);
-                    
-                    // Date limite pour réception des réponses d'éclaircissement en interne (5 jours avant ouverture)
-                    const dateLimiteInterne = addDays(dateOuverture, -5);
-                    row.querySelector('.date-limite-reponses-eclaircissement-interne').value = formatDateForInput(dateLimiteInterne);
-                    
-                    // Date limite pour insertion des réponses d'éclaircissement au portail (4 jours avant ouverture)
-                    const dateLimitePortail = addDays(dateOuverture, -4);
-                    row.querySelector('.date-limite-insertion-reponses-eclaircissement-portail').value = formatDateForInput(dateLimitePortail);
-                }
-                
-                // Calcul de la date d'insertion extrait + résultat (1 jour après achèvement des travaux)
-                if (dateAchevementTravaux) {
-                    const dateInsertionExtrait = addDays(dateAchevementTravaux, 1);
-                    row.querySelector('.date-insertion-extrait-resultat').value = formatDateForInput(dateInsertionExtrait);
-                }
-                
-                // Calcul de la date limite pour envoi des lettres d'attribution et écartement (3 jours après achèvement des travaux)
-                if (dateAchevementTravaux) {
-                    const dateLimiteLettres = addDays(dateAchevementTravaux, 3);
-                    row.querySelector('.date-limite-envoi-lettres-attribution-ecartement').value = formatDateForInput(dateLimiteLettres);
-                }
-                
-                // Calcul de la date limite pour approbation (59 jours après ouverture des plis)
-                if (dateOuverturePlis) {
-                    const dateLimiteApprobation = addDays(dateOuverturePlis, 59);
-                    row.querySelector('.date-limite-approbation').value = formatDateForInput(dateLimiteApprobation);
-                }
-                
-                // Calcul de la date limite de la caution définitive
-                if (dateNotificationApprobation && typeMarche) {
-                    const joursCaution = typeMarche === 'travaux-fourniture' ? 20 : 30;
-                    const dateLimiteCaution = addDays(dateNotificationApprobation, joursCaution);
-                    row.querySelector('.date-limite-caution-definitive').value = formatDateForInput(dateLimiteCaution);
-                }
-                
-                // Vérifier les alertes après calcul
-                checkAlertsForRow(row);
             }
+            
+            // Vérifier que la date de notification d'approbation ne dépasse pas date d'ouverture des plis + 59j
+            if (dateOuverturePlis && dateNotificationApprobation) {
+                const dateLimite = addDays(dateOuverturePlis, 59);
+                const dateNotification = new Date(dateNotificationApprobation);
+                
+                if (dateNotification > dateLimite) {
+                    alertes.push("Date de notification d'approbation dépasse la limite (59j après ouverture des plis)");
+                    row.querySelector('.date-notification-approbation').classList.add('alert-cell');
+                } else {
+                    row.querySelector('.date-notification-approbation').classList.remove('alert-cell');
+                }
+            }
+            
+            // Vérifier la date limite de caution
+            const dateLimiteCaution = row.querySelector('.date-limite-caution-definitive').value;
+            if (dateLimiteCaution) {
+                const aujourdhui = new Date();
+                const dateLimite = new Date(dateLimiteCaution);
+                
+                if (aujourdhui > dateLimite) {
+                    alertes.push("Date limite de caution dépassée");
+                    row.querySelector('.date-limite-caution-definitive').classList.add('alert-cell');
+                } else {
+                    row.querySelector('.date-limite-caution-definitive').classList.remove('alert-cell');
+                }
+            }
+            
+            // Afficher les alertes
+            const cellAlertes = row.querySelector('.alertes');
+            cellAlertes.innerHTML = '';
+            
+            if (alertes.length > 0) {
+                alertes.forEach(alerte => {
+                    const div = document.createElement('div');
+                    div.className = 'alert-message';
+                    div.textContent = alerte;
+                    cellAlertes.appendChild(div);
+                });
+            }
+            
+            return alertes;
+        }
 
-            // Fonction pour vérifier les alertes pour une ligne spécifique
-            function checkAlertsForRow(row) {
-                let alertes = [];
+        // Fonction pour vérifier les alertes (utilisée par les écouteurs d'événements)
+        function checkAlerts(event) {
+            const row = event.target.closest('tr');
+            checkAlertsForRow(row);
+        }
+
+        // Fonction pour afficher une notification
+        function showNotification(message, type = 'info') {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.className = `notification ${type} show`;
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+
+        // Fonction pour récupérer les données d'une ligne
+        function getRowData(rowId) {
+            const row = document.querySelector(`tr[data-row-id="${rowId}"]`);
+            if (!row) return null;
+            
+            // Récupérer les valeurs des champs de saisie
+            const exercice = row.querySelector('.exercice').value;
+            const dao = row.querySelector('.dao').value;
+            const objet = row.querySelector('.objet').value;
+            const typeMarche = row.querySelector('.type-marche').value;
+            const titulaireMarche = row.querySelector('.titulaire-marche').value;
+            const dateReceptionBesoin = row.querySelector('.date-reception-besoin').value;
+            const dateEnvoiMembres = row.querySelector('.date-envoi-membres').value;
+            const dateLimiteRemarquesMembres = row.querySelector('.date-limite-remarques-membres').value;
+            const dateApparitionJournalFr = row.querySelector('.date-apparition-journal-fr').value;
+            const dateApparitionJournalAr = row.querySelector('.date-apparition-journal-ar').value;
+            const dateInsertionPortail = row.querySelector('.date-insertion-portail').value;
+            const dateOuverturePlis = row.querySelector('.date-ouverture-plis').value;
+            const joursPublication = row.querySelector('.jours-publication').value;
+            const visiteLieuxExigee = row.querySelector('.visite-lieux-exigee').value;
+            const intervalleVisiteLieux = row.querySelector('.intervalle-visite-lieux').value;
+            const dateLimiteReponsesEclaircissementInterne = row.querySelector('.date-limite-reponses-eclaircissement-interne').value;
+            const dateLimiteInsertionReponsesEclaircissementPortail = row.querySelector('.date-limite-insertion-reponses-eclaircissement-portail').value;
+            const dateAchevementTravaux = row.querySelector('.date-achevement-travaux').value;
+            const dateInsertionExtraitResultat = row.querySelector('.date-insertion-extrait-resultat').value;
+            const dateLimiteEnvoiLettresAttributionEcartement = row.querySelector('.date-limite-envoi-lettres-attribution-ecartement').value;
+            const dateLimiteApprobation = row.querySelector('.date-limite-approbation').value;
+            
+            // Récupérer les données de maintien d'offres
+            let maintienOffres = { type: '', customValue: null };
+            const maintienRadio = row.querySelector('.maintien-radio:checked');
+            if (maintienRadio) {
+                maintienOffres.type = maintienRadio.value;
+                if (maintienRadio.value === 'custom') {
+                    maintienOffres.customValue = parseInt(row.querySelector('.maintien-custom').value) || null;
+                }
+            }
+            
+            const dateApprobation = row.querySelector('.date-approbation').value;
+            const dateNotificationApprobation = row.querySelector('.date-notification-approbation').value;
+            const dateLimiteCautionDefinitive = row.querySelector('.date-limite-caution-definitive').value;
+            
+            // Récupérer les alertes
+            const alertesElements = row.querySelectorAll('.alert-message');
+            const alertes = Array.from(alertesElements).map(el => el.textContent);
+            
+            return {
+                rowId,
+                exercice,
+                dao,
+                objet,
+                typeMarche,
+                titulaireMarche,
+                dateReceptionBesoin,
+                dateEnvoiMembres,
+                dateLimiteRemarquesMembres,
+                dateApparitionJournalFr,
+                dateApparitionJournalAr,
+                dateInsertionPortail,
+                dateOuverturePlis,
+                joursPublication,
+                visiteLieuxExigee,
+                intervalleVisiteLieux,
+                dateLimiteReponsesEclaircissementInterne,
+                dateLimiteInsertionReponsesEclaircissementPortail,
+                dateAchevementTravaux,
+                dateInsertionExtraitResultat,
+                dateLimiteEnvoiLettresAttributionEcartement,
+                dateLimiteApprobation,
+                maintienOffres,
+                dateApprobation,
+                dateNotificationApprobation,
+                dateLimiteCautionDefinitive,
+                alertes,
+                lastUpdated: new Date().toISOString()
+            };
+        }
+
+        // Fonction pour sauvegarder une ligne individuelle
+        function saveRowData(rowId) {
+            const rowData = getRowData(rowId);
+            if (!rowData) {
+                showNotification('Erreur: Ligne non trouvée', 'error');
+                return;
+            }
+            
+            // Vérifier les champs obligatoires
+            if (!rowData.exercice || !rowData.dao || !rowData.objet || !rowData.typeMarche || !rowData.titulaireMarche) {
+                showNotification('Veuillez remplir tous les champs obligatoires', 'error');
+                return;
+            }
+            
+            // Sauvegarder dans Firebase
+            db.collection('marches').doc(rowId.toString()).set(rowData)
+                .then(() => {
+                    showNotification('Ligne sauvegardée avec succès', 'success');
+                })
+                .catch((error) => {
+                    console.error('Erreur lors de la sauvegarde:', error);
+                    showNotification('Erreur lors de la sauvegarde', 'error');
+                });
+        }
+
+        // Fonction pour sauvegarder toutes les données
+        function saveAllData() {
+            const rows = document.querySelectorAll('#table-body tr');
+            let hasErrors = false;
+            let savedCount = 0;
+            
+            rows.forEach(row => {
+                const rowId = row.getAttribute('data-row-id');
+                const rowData = getRowData(rowId);
                 
                 // Vérifier les champs obligatoires
-                const exercice = row.querySelector('.exercice').value;
-                const dao = row.querySelector('.dao').value;
-                const objet = row.querySelector('.objet').value;
-                const typeMarche = row.querySelector('.type-marche').value;
-                const titulaireMarche = row.querySelector('.titulaire-marche').value;
-                
-                if (!exercice) {
-                    alertes.push("Exercice manquant");
-                    row.querySelector('.exercice').classList.add('alert-cell');
-                } else {
-                    row.querySelector('.exercice').classList.remove('alert-cell');
+                if (!rowData.exercice || !rowData.dao || !rowData.objet || !rowData.typeMarche || !rowData.titulaireMarche) {
+                    hasErrors = true;
+                    return;
                 }
                 
-                if (!dao) {
-                    alertes.push("DAO N° Objet manquant");
-                    row.querySelector('.dao').classList.add('alert-cell');
-                } else {
-                    row.querySelector('.dao').classList.remove('alert-cell');
-                }
-                
-                if (!objet) {
-                    alertes.push("Objet manquant");
-                    row.querySelector('.objet').classList.add('alert-cell');
-                } else {
-                    row.querySelector('.objet').classList.remove('alert-cell');
-                }
-                
-                if (!typeMarche) {
-                    alertes.push("Type de marché manquant");
-                    row.querySelector('.type-marche').classList.add('alert-cell');
-                } else {
-                    row.querySelector('.type-marche').classList.remove('alert-cell');
-                }
-                
-                if (!titulaireMarche) {
-                    alertes.push("Titulaire manquant");
-                    row.querySelector('.titulaire-marche').classList.add('alert-cell');
-                } else {
-                    row.querySelector('.titulaire-marche').classList.remove('alert-cell');
-                }
-                
-                // Vérifier le délai de 6 jours pour les remarques des membres
-                const dateEnvoiMembres = row.querySelector('.date-envoi-membres').value;
-                const dateLimiteRemarques = row.querySelector('.date-limite-remarques-membres').value;
-                const dateApparitionJournalFr = row.querySelector('.date-apparition-journal-fr').value;
-                const dateApparitionJournalAr = row.querySelector('.date-apparition-journal-ar').value;
-                const dateInsertionPortail = row.querySelector('.date-insertion-portail').value;
-                
-                if (dateEnvoiMembres && dateLimiteRemarques) {
-                    const dateLimite = new Date(dateLimiteRemarques);
-                    
-                    // Vérifier si l'une des dates de publication est avant la date limite
-                    let delaiNonRespecte = false;
-                    if (dateApparitionJournalFr && new Date(dateApparitionJournalFr) < dateLimite) {
-                        delaiNonRespecte = true;
-                    }
-                    if (dateApparitionJournalAr && new Date(dateApparitionJournalAr) < dateLimite) {
-                        delaiNonRespecte = true;
-                    }
-                    if (dateInsertionPortail && new Date(dateInsertionPortail) < dateLimite) {
-                        delaiNonRespecte = true;
-                    }
-                    
-                    if (delaiNonRespecte) {
-                        alertes.push("Non respect du délai de 6j pour les remarques des membres");
-                    }
-                }
-                
-                // Vérifier les dates critiques
-                const dateOuverturePlis = row.querySelector('.date-ouverture-plis').value;
-                const dateLimiteApprobation = row.querySelector('.date-limite-approbation').value;
-                const dateApprobation = row.querySelector('.date-approbation').value;
-                const dateNotificationApprobation = row.querySelector('.date-notification-approbation').value;
-                
-                if (dateOuverturePlis && dateLimiteApprobation && dateApprobation) {
-                    const dateLimite = new Date(dateLimiteApprobation);
-                    const dateApp = new Date(dateApprobation);
-                    
-                    if (dateApp > dateLimite) {
-                        alertes.push("Date d'approbation dépassée");
-                        row.querySelector('.date-approbation').classList.add('alert-cell');
-                    } else {
-                        row.querySelector('.date-approbation').classList.remove('alert-cell');
-                    }
-                }
-                
-                // Vérifier que la date de notification d'approbation ne dépasse pas date d'ouverture des plis + 59j
-                if (dateOuverturePlis && dateNotificationApprobation) {
-                    const dateLimite = addDays(dateOuverturePlis, 59);
-                    const dateNotification = new Date(dateNotificationApprobation);
-                    
-                    if (dateNotification > dateLimite) {
-                        alertes.push("Date de notification d'approbation dépasse la limite (59j après ouverture des plis)");
-                        row.querySelector('.date-notification-approbation').classList.add('alert-cell');
-                    } else {
-                        row.querySelector('.date-notification-approbation').classList.remove('alert-cell');
-                    }
-                }
-                
-                // Vérifier la date limite de caution
-                const dateLimiteCaution = row.querySelector('.date-limite-caution-definitive').value;
-                if (dateLimiteCaution) {
-                    const aujourdhui = new Date();
-                    const dateLimite = new Date(dateLimiteCaution);
-                    
-                    if (aujourdhui > dateLimite) {
-                        alertes.push("Date limite de caution dépassée");
-                        row.querySelector('.date-limite-caution-definitive').classList.add('alert-cell');
-                    } else {
-                        row.querySelector('.date-limite-caution-definitive').classList.remove('alert-cell');
-                    }
-                }
-                
-                // Afficher les alertes
-                const cellAlertes = row.querySelector('.alertes');
-                cellAlertes.innerHTML = '';
-                
-                if (alertes.length > 0) {
-                    alertes.forEach(alerte => {
-                        const div = document.createElement('div');
-                        div.className = 'alert-message';
-                        div.textContent = alerte;
-                        cellAlertes.appendChild(div);
+                // Sauvegarder dans Firebase
+                db.collection('marches').doc(rowId.toString()).set(rowData)
+                    .then(() => {
+                        savedCount++;
+                        if (savedCount === rows.length && !hasErrors) {
+                            showNotification('Toutes les données ont été sauvegardées avec succès', 'success');
+                        }
+                    })
+                    .catch((error) => {
+                        console.error('Erreur lors de la sauvegarde:', error);
+                        hasErrors = true;
+                        showNotification('Erreur lors de la sauvegarde de certaines lignes', 'error');
                     });
-                }
+            });
+            
+            if (hasErrors) {
+                showNotification('Certains champs obligatoires sont manquants', 'error');
             }
+        }
 
-            // Fonction pour vérifier les alertes (utilisée par les écouteurs d'événements)
-            function checkAlerts(event) {
-                const row = event.target.closest('tr');
-                checkAlertsForRow(row);
+        // Fonction pour charger les données depuis Firebase
+        function loadDataFromFirebase() {
+            db.collection('marches').get()
+                .then((querySnapshot) => {
+                    // Vider le tableau
+                    document.getElementById('table-body').innerHTML = '';
+                    currentRowId = 1;
+                    
+                    if (querySnapshot.empty) {
+                        showNotification('Aucune donnée trouvée', 'info');
+                        addNewRow();
+                        return;
+                    }
+                    
+                    let loadedCount = 0;
+                    querySnapshot.forEach((doc) => {
+                        const data = doc.data();
+                        addNewRow(data);
+                        loadedCount++;
+                    });
+                    
+                    showNotification(`${loadedCount} ligne(s) chargée(s) avec succès`, 'success');
+                })
+                .catch((error) => {
+                    console.error('Erreur lors du chargement:', error);
+                    showNotification('Erreur lors du chargement des données', 'error');
+                });
+        }
+
+        // Fonction pour supprimer une ligne
+        function deleteRow(rowId) {
+            if (confirm('Êtes-vous sûr de vouloir supprimer cette ligne ?')) {
+                // Supprimer de Firebase
+                db.collection('marches').doc(rowId.toString()).delete()
+                    .then(() => {
+                        // Supprimer du DOM
+                        const row = document.querySelector(`tr[data-row-id="${rowId}"]`);
+                        if (row) {
+                            row.remove();
+                            showNotification('Ligne supprimée avec succès', 'success');
+                        }
+                    })
+                    .catch((error) => {
+                        console.error('Erreur lors de la suppression:', error);
+                        showNotification('Erreur lors de la suppression', 'error');
+                    });
             }
-        });
+        }
     </script>
 </body>
 </html>
